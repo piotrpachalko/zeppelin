@@ -17,6 +17,20 @@
         "defaultValue": "6123",
         "description": "port of running JobManager.",
         "type": "number"
+      },
+      "jobmanager.rpc.address": {
+        "envName": "jobmanager.rpc.address",
+        "propertyName": null,
+        "defaultValue": "localhost",
+        "description": "host name of running JobManager",
+        "type": "string"
+      },
+      "jobmanager.rpc.port": {
+        "envName": "jobmanager.rpc.port",
+        "propertyName": null,
+        "defaultValue": "6123",
+        "description": "port of running JobManager",
+        "type": "number"
       }
     },
     "editor": {

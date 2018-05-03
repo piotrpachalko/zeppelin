@@ -58,6 +58,8 @@ import org.apache.zeppelin.interpreter.InterpreterResult.Code;
 import org.apache.zeppelin.interpreter.InterpreterUtils;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
 
+import org.apache.flink.runtime.highavailability.HighAvailabilityServicesUtils;
+
 /**
  * Interpreter for Apache Flink (http://flink.apache.org).
  */
@@ -79,6 +81,7 @@ public class FlinkInterpreter extends Interpreter {
     out = new ByteArrayOutputStream();
     flinkConf = new org.apache.flink.configuration.Configuration();
     Properties intpProperty = getProperties();
+    prepareIntpPropertyByOldNames(intpProperty);
     for (Object k : intpProperty.keySet()) {
       String key = (String) k;
       String val = toString(intpProperty.get(key));
@@ -149,24 +152,54 @@ public class FlinkInterpreter extends Interpreter {
 
   }
 
-  private boolean localMode() {
+  private void prepareIntpPropertyByOldNames(Properties intpProperty) {
+    if (!intpProperty.contains("jobmanager.rpc.address")) {
+      if (intpProperty.contains("host")) {
+        intpProperty.setProperty("jobmanager.rpc.address", intpProperty.getProperty("host"));
+      }
+    }
+    if (!intpProperty.contains("jobmanager.rpc.port")) {
+      if (intpProperty.contains("port")) {
+        intpProperty.setProperty("jobmanager.rpc.port", intpProperty.getProperty("port"));
+      }
+    }
+  }
+
+  private String getHostOrRpcAddress() {
     String host = getProperty("host");
-    return host == null || host.trim().length() == 0 || host.trim().equals("local");
+    if (host == null) {
+      host = getProperty("jobmanager.rpc.address");
+    }
+    return host;
+  }
+
+  private boolean localMode() {
+    String host = getHostOrRpcAddress();
+    return host == null || host.trim().length() == 0 || host.trim().equals("local")
+            || host.trim().equals("localhost");
   }
 
   private String getHost() {
     if (localMode()) {
       return "localhost";
     } else {
-      return getProperty("host");
+      return getHostOrRpcAddress();
     }
+  }
+
+  private String getPortOrRpcPort() {
+    String port = getProperty("port");
+    if (port == null) {
+      port = getProperty("jobmanager.rpc.port");
+    }
+    return port;
   }
 
   private int getPort() {
     if (localMode()) {
       return localFlinkCluster.getLeaderRPCPort();
     } else {
-      return Integer.parseInt(getProperty("port"));
+      return Integer.parseInt(getPortOrRpcPort());
     }
   }
 
@@ -394,9 +427,11 @@ public class FlinkInterpreter extends Interpreter {
   }
 
   private void startFlinkMiniCluster() {
-    localFlinkCluster = new LocalFlinkMiniCluster(flinkConf, false);
-
     try {
+      localFlinkCluster = new LocalFlinkMiniCluster(flinkConf,
+              HighAvailabilityServicesUtils.createHighAvailabilityServices(flinkConf,
+              org.apache.flink.runtime.concurrent.Executors.directExecutor(),
+              HighAvailabilityServicesUtils.AddressResolution.NO_ADDRESS_RESOLUTION), false);
       localFlinkCluster.start(true);
     } catch (Exception e){
       throw new RuntimeException("Could not start Flink mini cluster.", e);
